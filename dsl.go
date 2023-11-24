@@ -157,19 +157,16 @@ func (a *Assistant) AddAction(v Action) {
 	})
 }
 
+func (a *Assistant) AssistantsDir() (string, error) {
+	return a.userDir("assistants")
+}
+
+func (a *Assistant) ConfigDir() (string, error) {
+	return a.userDir("config")
+}
+
 func (a *Assistant) StorageDir() (string, error) {
-	currentUser, err := user.Current()
-	if err != nil {
-		return "", fmt.Errorf("error while getting user home directory: %w", err)
-	}
-
-	name := filepath.Join(currentUser.HomeDir, ".jarbles", "storage")
-	err = os.MkdirAll(name, os.ModePerm)
-	if err != nil {
-		return name, err
-	}
-
-	return name, nil
+	return a.userDir("storage")
 }
 
 func (a *Assistant) Respond() {
@@ -223,9 +220,7 @@ func (a *Assistant) Execute(r io.Reader) string {
 }
 
 func (a *Assistant) Errorf(format string, v ...any) error {
-	err := fmt.Errorf(format, v...)
-	logger.Printf("ERROR: %s\n", err)
-	return err
+	return fmt.Errorf(format, v...)
 }
 
 func (a *Assistant) Log(message string) {
@@ -234,6 +229,24 @@ func (a *Assistant) Log(message string) {
 
 func (a *Assistant) Logf(format string, v ...any) {
 	logger.Printf(format, v...)
+}
+
+func (a *Assistant) LogError(message string) {
+	logger.Println("ERROR: " + message)
+}
+
+func (a *Assistant) LogErrorf(format string, v ...any) {
+	logger.Printf("ERROR: "+format, v...)
+}
+
+func (a *Assistant) userDir(dir string) (string, error) {
+	currentUser, err := user.Current()
+	if err != nil {
+		return "", fmt.Errorf("error while getting user home directory: %w", err)
+	}
+
+	name := filepath.Join(currentUser.HomeDir, ".jarbles", dir)
+	return name, nil
 }
 
 func (a *Assistant) route(actionName, payload string) (string, error) {
