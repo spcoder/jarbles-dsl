@@ -8,7 +8,6 @@ import (
 	"gopkg.in/yaml.v3"
 	"io"
 	"log"
-	mrand "math/rand"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -16,17 +15,8 @@ import (
 	"strings"
 )
 
-//go:embed images/avatar1.jpeg
-var image1 []byte
-
-//go:embed images/avatar2.jpeg
-var image2 []byte
-
-//go:embed images/avatar3.jpeg
-var image3 []byte
-
-//go:embed images/avatar4.jpeg
-var image4 []byte
+//go:embed avatar.jpeg
+var avatar []byte
 
 var logger *log.Logger
 
@@ -101,7 +91,7 @@ func NewAssistant(name, description string) Assistant {
 	id := slugify(name)
 
 	return Assistant{
-		avatarImage: randomImage(),
+		avatarImage: avatar,
 		description: assistantDescription{
 			Id:          id,
 			Name:        name,
@@ -161,12 +151,142 @@ func (a *Assistant) AssistantsDir() (string, error) {
 	return a.userDir("assistants")
 }
 
-func (a *Assistant) ConfigDir() (string, error) {
-	return a.userDir("config")
+func (a *Assistant) LogDir() (string, error) {
+	return a.userDir("log")
 }
 
-func (a *Assistant) StorageDir() (string, error) {
-	return a.userDir("storage")
+func (a *Assistant) ConfigFilename() (string, error) {
+	assistantsDir, err := a.AssistantsDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(assistantsDir, a.description.Id+".config"), nil
+}
+
+func (a *Assistant) ConfigGet(key, defaultValue string) (string, error) {
+	configFilename, err := a.ConfigFilename()
+	if err != nil {
+		return "", err
+	}
+
+	file, err := os.Open(configFilename)
+	if err != nil {
+		return "", err
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		k, v, found := strings.Cut(line, "=")
+		if found && k == key {
+			return v, nil
+		}
+	}
+
+	err = scanner.Err()
+	if err != nil {
+		return "", err
+	}
+
+	return defaultValue, nil
+}
+
+func (a *Assistant) ConfigSet(key string, value string) error {
+	configFilename, err := a.ConfigFilename()
+	if err != nil {
+		return err
+	}
+
+	file, err := os.OpenFile(configFilename, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+
+	var lines []string
+	updated := false
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		k, _, found := strings.Cut(line, "=")
+		if found && k == key {
+			updated = true
+			line = key + "=" + value
+		}
+		lines = append(lines, line)
+	}
+
+	err = scanner.Err()
+	if err != nil {
+		return err
+	}
+
+	if !updated {
+		lines = append(lines, key+"="+value)
+	}
+
+	_, err = file.Seek(0, 0) // move the cursor to the start
+	if err != nil {
+		return err
+	}
+
+	err = file.Truncate(0) // clear the file
+	if err != nil {
+		return err
+	}
+
+	writer := bufio.NewWriter(file)
+	for _, line := range lines {
+		_, err := writer.WriteString(line + "\n")
+		if err != nil {
+			return err
+		}
+	}
+
+	err = writer.Flush()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *Assistant) ConfigMap() (map[string]string, error) {
+	configFilename, err := a.ConfigFilename()
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := os.Open(configFilename)
+	if err != nil {
+		return nil, err
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+
+	keyValues := make(map[string]string)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		k, v, found := strings.Cut(line, "=")
+		if found {
+			keyValues[k] = v
+		}
+	}
+
+	err = scanner.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return keyValues, nil
 }
 
 func (a *Assistant) Respond() {
@@ -174,12 +294,12 @@ func (a *Assistant) Respond() {
 }
 
 func (a *Assistant) Execute(r io.Reader) string {
-	storageDir, err := a.StorageDir()
+	logDir, err := a.LogDir()
 	if err != nil {
-		return fmt.Sprintf("error while getting storage directory: %s: %s", storageDir, err)
+		return fmt.Sprintf("error while getting log directory: %s: %s", logDir, err)
 	}
 
-	logname := filepath.Join(storageDir, a.description.Id+".log")
+	logname := filepath.Join(logDir, a.description.Id+".log")
 	logfile, err := os.OpenFile(logname, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
 	if err != nil {
 		return fmt.Sprintf("error while creating log file: %s: %s", logname, err)
@@ -214,13 +334,9 @@ func (a *Assistant) Execute(r io.Reader) string {
 	// route the request and output the response
 	output, err := a.route(action, payload)
 	if err != nil {
-		return fmt.Sprintf("error while trying to perform: %s: %s", action, err)
+		return err.Error()
 	}
 	return fmt.Sprintf(output)
-}
-
-func (a *Assistant) Errorf(format string, v ...any) error {
-	return fmt.Errorf(format, v...)
 }
 
 func (a *Assistant) Log(message string) {
@@ -239,14 +355,16 @@ func (a *Assistant) LogErrorf(format string, v ...any) {
 	logger.Printf("ERROR: "+format, v...)
 }
 
-func (a *Assistant) userDir(dir string) (string, error) {
+func (a *Assistant) userDir(dir ...string) (string, error) {
 	currentUser, err := user.Current()
 	if err != nil {
 		return "", fmt.Errorf("error while getting user home directory: %w", err)
 	}
 
-	name := filepath.Join(currentUser.HomeDir, ".jarbles", dir)
-	return name, nil
+	paths := []string{currentUser.HomeDir, ".jarbles"}
+	paths = append(paths, dir...)
+
+	return filepath.Clean(strings.Join(paths, string(filepath.Separator))), nil
 }
 
 func (a *Assistant) route(actionName, payload string) (string, error) {
@@ -254,7 +372,7 @@ func (a *Assistant) route(actionName, payload string) (string, error) {
 	case "describe":
 		return a.describe()
 	case "image":
-		return a.image()
+		return a.image(), nil
 	default:
 		for _, action := range a.actions {
 			if action.Name == actionName {
@@ -273,8 +391,8 @@ func (a *Assistant) describe() (string, error) {
 	return string(data), nil
 }
 
-func (a *Assistant) image() (string, error) {
-	return base64.StdEncoding.EncodeToString(a.avatarImage), nil
+func (a *Assistant) image() string {
+	return base64.StdEncoding.EncodeToString(a.avatarImage)
 }
 
 func slugify(str string) string {
@@ -285,10 +403,4 @@ func slugify(str string) string {
 	s = reg.ReplaceAllString(s, "")
 
 	return s
-}
-
-func randomImage() []byte {
-	images := [][]byte{image1, image2, image3, image4}
-	randomIndex := mrand.Intn(len(images))
-	return images[randomIndex]
 }
