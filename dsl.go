@@ -71,6 +71,11 @@ type assistantDescriptionFunctionProperty struct {
 	Enum        []string `yaml:"enum"`
 }
 
+type quicklink struct {
+	Title   string `yaml:"title"`
+	Content string `yaml:"content"`
+}
+
 type assistantDescription struct {
 	Id          string                         `yaml:"id"`
 	Name        string                         `yaml:"name"`
@@ -79,6 +84,7 @@ type assistantDescription struct {
 	Model       string                         `yaml:"model"`
 	Messages    []assistantDescriptionMessage  `yaml:"messages"`
 	Functions   []assistantDescriptionFunction `yaml:"functions"`
+	Quicklinks  []quicklink                    `yaml:"quicklinks"`
 }
 
 type Assistant struct {
@@ -100,6 +106,7 @@ func NewAssistant(name, description string) Assistant {
 			Placeholder: "How can I help you?",
 			Messages:    nil,
 			Functions:   nil,
+			Quicklinks:  nil,
 		},
 	}
 }
@@ -121,6 +128,13 @@ func (a *Assistant) AddMessage(role role, content string) {
 
 func (a *Assistant) Image(v []byte) {
 	a.avatarImage = v
+}
+
+func (a *Assistant) AddQuicklink(title, content string) {
+	a.description.Quicklinks = append(a.description.Quicklinks, quicklink{
+		Title:   title,
+		Content: content,
+	})
 }
 
 func (a *Assistant) AddAction(v Action) {
