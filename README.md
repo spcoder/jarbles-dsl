@@ -1,3 +1,3 @@
-# jarbles-dsl
+# jarbles-framework
 
-The official DSL for Jarbles.
+The official framework for Jarbles assistants.

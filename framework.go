@@ -1,4 +1,4 @@
-package jarbles_dsl
+package jarbles_framework
 
 import (
 	"bufio"
@@ -20,11 +20,12 @@ var avatar []byte
 
 var logger *log.Logger
 
-const (
-	ModelGPT35Turbo model = "gpt-3.5-turbo-1106"
-	ModelGPT4Turbo  model = "gpt-4-1106-preview"
-)
+const ModelGPT35Turbo model = "gpt-3.5-turbo-1106"
 
+//goland:noinspection GoUnusedConst
+const ModelGPT4Turbo model = "gpt-4-1106-preview"
+
+//goland:noinspection GoUnusedConst
 const (
 	RoleSystem    role = "system"
 	RoleUser      role = "user"
@@ -93,6 +94,7 @@ type Assistant struct {
 	actions     map[string]Action
 }
 
+//goland:noinspection GoUnusedExportedFunction
 func NewAssistant(name, description string) Assistant {
 	id := slugify(name)
 
