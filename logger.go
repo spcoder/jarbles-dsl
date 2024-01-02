@@ -12,19 +12,19 @@ import (
 )
 
 type LibLogger struct {
-	a        *Assistant
+	stringer fmt.Stringer
 	w        io.WriteCloser
 	minLevel slog.Level
 	trunc    int
 }
 
-func NewLibLogger(a *Assistant) (*slog.Logger, error) {
+func NewLibLogger(stringer fmt.Stringer, logname string) (*slog.Logger, error) {
 	err := os.MkdirAll(LogDir(), 0700)
 	if err != nil {
 		return nil, fmt.Errorf("error while creating log directory: %s: %w", LogDir(), err)
 	}
 
-	filename := filepath.Join(LogDir(), "assistants.log")
+	filename := filepath.Join(LogDir(), logname)
 	logfile, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0700)
 	if err != nil {
 		return nil, fmt.Errorf("error while creating log file: %s: %w", filename, err)
@@ -49,7 +49,7 @@ func NewLibLogger(a *Assistant) (*slog.Logger, error) {
 		trunc = tl
 	}
 
-	return slog.New(&LibLogger{a: a, w: logfile, trunc: trunc, minLevel: minLevel}), nil
+	return slog.New(&LibLogger{stringer: stringer, w: logfile, trunc: trunc, minLevel: minLevel}), nil
 }
 
 func (l LibLogger) Enabled(context context.Context, level slog.Level) bool {
@@ -65,7 +65,7 @@ func (l LibLogger) Handle(context context.Context, record slog.Record) error {
 	})
 
 	timestamp := record.Time.Format("15:04:05")
-	line := fmt.Sprintf("[%v] (%s) {%s} %v %v", record.Level, l.a.description.Id, l.a.description.Model, timestamp, message)
+	line := fmt.Sprintf("[%v] %s %v %v", record.Level, l.stringer.String(), timestamp, message)
 
 	if l.trunc > 0 {
 		// truncate assumes that the user wants everything on a single line
@@ -95,4 +95,54 @@ func (l LibLogger) WithGroup(name string) slog.Handler {
 
 func (l LibLogger) Close() error {
 	return l.w.Close()
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func Log(ctx context.Context, level slog.Level, msg string, args ...any) {
+	logger.Log(ctx, level, msg, args...)
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func LogAttrs(ctx context.Context, level slog.Level, msg string, attrs ...slog.Attr) {
+	logger.LogAttrs(ctx, level, msg, attrs...)
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func LogDebug(msg string, args ...any) {
+	logger.Debug(msg, args...)
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func LogDebugContext(ctx context.Context, msg string, args ...any) {
+	logger.DebugContext(ctx, msg, args...)
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func LogInfo(msg string, args ...any) {
+	logger.Info(msg, args...)
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func LogInfoContext(ctx context.Context, msg string, args ...any) {
+	logger.InfoContext(ctx, msg, args...)
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func LogWarn(msg string, args ...any) {
+	logger.Warn(msg, args...)
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func LogWarnContext(ctx context.Context, msg string, args ...any) {
+	logger.WarnContext(ctx, msg, args...)
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func LogError(msg string, args ...any) {
+	logger.Error(msg, args...)
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func LogErrorContext(ctx context.Context, msg string, args ...any) {
+	logger.ErrorContext(ctx, msg, args...)
 }

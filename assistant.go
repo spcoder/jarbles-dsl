@@ -2,7 +2,6 @@ package jarbles_framework
 
 import (
 	"bufio"
-	"context"
 	_ "embed"
 	"encoding/base64"
 	"fmt"
@@ -12,7 +11,6 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"regexp"
 	"strings"
 )
 
@@ -26,16 +24,16 @@ const ModelGPT35Turbo model = "gpt-3.5-turbo-1106"
 
 //goland:noinspection GoUnusedConst
 const (
-	ModelGPT4Turbo model = "gpt-4-1106-preview"
-	RoleSystem     role  = "system"
-	RoleUser       role  = "user"
-	RoleAssistant  role  = "assistant"
+	ModelGPT4Turbo      model = "gpt-4-1106-preview"
+	RoleSystem          role  = "system"
+	RoleUser            role  = "user"
+	RoleUserHidden      role  = "user-hidden"
+	RoleAssistant       role  = "assistant"
+	RoleAssistantHidden role  = "assistant-hidden"
 )
 
 type role string
 type model string
-
-type ActionFunction func(payload string) (string, error)
 
 type ActionArguments struct {
 	Name        string
@@ -54,6 +52,7 @@ type Action struct {
 
 type assistantDescriptionMessage struct {
 	Role    string `yaml:"role"`
+	Hidden  bool   `yaml:"hidden"`
 	Content string `yaml:"content"`
 }
 
@@ -132,6 +131,10 @@ func NewAssistant(name, description string) Assistant {
 	}
 }
 
+func (a *Assistant) String() string {
+	return fmt.Sprintf("(%s) {%s}", a.description.Id, a.description.Model)
+}
+
 func (a *Assistant) Model(v model) {
 	a.description.Model = string(v)
 }
@@ -141,8 +144,14 @@ func (a *Assistant) Placeholder(v string) {
 }
 
 func (a *Assistant) AddMessage(role role, content string) {
+	hidden := false
+	if role == RoleUserHidden || role == RoleAssistantHidden {
+		hidden = true
+		role = role[:len(role)-len("-hidden")]
+	}
 	a.description.Messages = append(a.description.Messages, assistantDescriptionMessage{
 		Role:    string(role),
+		Hidden:  hidden,
 		Content: strings.TrimSpace(content),
 	})
 }
@@ -330,7 +339,7 @@ func (a *Assistant) Respond() {
 
 func (a *Assistant) Execute(r io.Reader) string {
 	var err error
-	logger, err = NewLibLogger(a)
+	logger, err = NewLibLogger(a, "assistants.log")
 	if err != nil {
 		return fmt.Sprintf("error while creating logger: %s", err.Error())
 	}
@@ -408,64 +417,4 @@ func (a *Assistant) describe() (string, error) {
 func (a *Assistant) image() string {
 	logger.Debug("image called")
 	return base64.StdEncoding.EncodeToString(a.avatarImage)
-}
-
-func slugify(str string) string {
-	s := strings.ToLower(str)
-	s = strings.ReplaceAll(s, " ", "-")
-
-	reg, _ := regexp.Compile("[^a-zA-Z0-9\\-]+")
-	s = reg.ReplaceAllString(s, "")
-
-	return s
-}
-
-//goland:noinspection GoUnusedExportedFunction
-func Log(ctx context.Context, level slog.Level, msg string, args ...any) {
-	logger.Log(ctx, level, msg, args...)
-}
-
-//goland:noinspection GoUnusedExportedFunction
-func LogAttrs(ctx context.Context, level slog.Level, msg string, attrs ...slog.Attr) {
-	logger.LogAttrs(ctx, level, msg, attrs...)
-}
-
-//goland:noinspection GoUnusedExportedFunction
-func LogDebug(msg string, args ...any) {
-	logger.Debug(msg, args...)
-}
-
-//goland:noinspection GoUnusedExportedFunction
-func LogDebugContext(ctx context.Context, msg string, args ...any) {
-	logger.DebugContext(ctx, msg, args...)
-}
-
-//goland:noinspection GoUnusedExportedFunction
-func LogInfo(msg string, args ...any) {
-	logger.Info(msg, args...)
-}
-
-//goland:noinspection GoUnusedExportedFunction
-func LogInfoContext(ctx context.Context, msg string, args ...any) {
-	logger.InfoContext(ctx, msg, args...)
-}
-
-//goland:noinspection GoUnusedExportedFunction
-func LogWarn(msg string, args ...any) {
-	logger.Warn(msg, args...)
-}
-
-//goland:noinspection GoUnusedExportedFunction
-func LogWarnContext(ctx context.Context, msg string, args ...any) {
-	logger.WarnContext(ctx, msg, args...)
-}
-
-//goland:noinspection GoUnusedExportedFunction
-func LogError(msg string, args ...any) {
-	logger.Error(msg, args...)
-}
-
-//goland:noinspection GoUnusedExportedFunction
-func LogErrorContext(ctx context.Context, msg string, args ...any) {
-	logger.ErrorContext(ctx, msg, args...)
 }
