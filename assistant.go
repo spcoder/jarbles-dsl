@@ -4,8 +4,8 @@ import (
 	"bufio"
 	_ "embed"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"io"
 	"log/slog"
 	"os"
@@ -46,39 +46,39 @@ type Action struct {
 }
 
 type assistantDescriptionMessage struct {
-	Role    string `yaml:"role"`
-	Hidden  bool   `yaml:"hidden"`
-	Content string `yaml:"content"`
+	Role    string `json:"role"`
+	Hidden  bool   `json:"hidden"`
+	Content string `json:"content"`
 }
 
 type assistantDescriptionFunction struct {
-	Name        string                                 `yaml:"name"`
-	Description string                                 `yaml:"description"`
-	Properties  []assistantDescriptionFunctionProperty `yaml:"properties"`
-	Required    []string                               `yaml:"required"`
+	Name        string                                 `json:"name"`
+	Description string                                 `json:"description"`
+	Properties  []assistantDescriptionFunctionProperty `json:"properties"`
+	Required    []string                               `json:"required"`
 }
 
 type assistantDescriptionFunctionProperty struct {
-	Name        string   `yaml:"name"`
-	Type        string   `yaml:"type"`
-	Description string   `yaml:"description"`
-	Enum        []string `yaml:"enum"`
+	Name        string   `json:"name"`
+	Type        string   `json:"type"`
+	Description string   `json:"description"`
+	Enum        []string `json:"enum"`
 }
 
 type quicklink struct {
-	Title   string `yaml:"title"`
-	Content string `yaml:"content"`
+	Title   string `json:"title"`
+	Content string `json:"content"`
 }
 
 type assistantDescription struct {
-	Id          string                         `yaml:"id"`
-	Name        string                         `yaml:"name"`
-	Description string                         `yaml:"description"`
-	Placeholder string                         `yaml:"placeholder"`
-	Model       string                         `yaml:"model"`
-	Messages    []assistantDescriptionMessage  `yaml:"messages"`
-	Functions   []assistantDescriptionFunction `yaml:"functions"`
-	Quicklinks  []quicklink                    `yaml:"quicklinks"`
+	Id          string                         `json:"id"`
+	Name        string                         `json:"name"`
+	Description string                         `json:"description"`
+	Placeholder string                         `json:"placeholder"`
+	Model       string                         `json:"model"`
+	Messages    []assistantDescriptionMessage  `json:"messages"`
+	Functions   []assistantDescriptionFunction `json:"functions"`
+	Quicklinks  []quicklink                    `json:"quicklinks"`
 }
 
 type Assistant struct {
@@ -456,9 +456,9 @@ func (a *Assistant) route(actionName, payload string) (string, error) {
 
 func (a *Assistant) describe() (string, error) {
 	logger.Debug("describe called")
-	data, err := yaml.Marshal(a.description)
+	data, err := json.Marshal(a.description)
 	if err != nil {
-		return "", fmt.Errorf("error while marshaling yaml: %w", err)
+		return "", fmt.Errorf("error while marshaling json: %w", err)
 	}
 	return string(data), nil
 }
