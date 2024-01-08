@@ -1,6 +1,7 @@
 package jarbles_framework
 
 import (
+	"os"
 	"os/user"
 	"regexp"
 	"strings"
@@ -16,6 +17,16 @@ func MustCurrentUser() *user.User {
 	}
 
 	return currentUser
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func MustGetEnv(key string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		panic("missing env variable: " + key)
+	}
+
+	return value
 }
 
 func slugify(str string) string {

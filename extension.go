@@ -106,6 +106,15 @@ func (e *Extension) ActionById(id string) *ExtensionAction {
 	return nil
 }
 
+func (e *Extension) NavigationByName(name string) *ExtensionAction {
+	for _, action := range e.actions {
+		if action.Name == name && action.Nav {
+			return &action
+		}
+	}
+	return nil
+}
+
 func (e *Extension) addAction(v ExtensionAction) {
 	if e.actions == nil {
 		e.actions = make(map[string]ExtensionAction)
@@ -140,6 +149,8 @@ func (e *Extension) Execute(r io.Reader) (string, error) {
 			_ = h.Close()
 		}
 	}(logger)
+
+	slog.SetDefault(logger)
 
 	scanner := bufio.NewScanner(r)
 

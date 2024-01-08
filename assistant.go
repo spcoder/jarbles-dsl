@@ -20,20 +20,15 @@ var (
 	logger *slog.Logger
 )
 
-const ModelGPT35Turbo model = "gpt-3.5-turbo-1106"
+const ModelGPT35Turbo string = "gpt-3.5-turbo-1106"
 
 //goland:noinspection GoUnusedConst
 const (
-	ModelGPT4Turbo      model = "gpt-4-1106-preview"
-	RoleSystem          role  = "system"
-	RoleUser            role  = "user"
-	RoleUserHidden      role  = "user-hidden"
-	RoleAssistant       role  = "assistant"
-	RoleAssistantHidden role  = "assistant-hidden"
+	ModelGPT4Turbo string = "gpt-4-1106-preview"
+	RoleSystem     string = "system"
+	RoleUser       string = "user"
+	RoleAssistant  string = "assistant"
 )
-
-type role string
-type model string
 
 type ActionArguments struct {
 	Name        string
@@ -122,7 +117,7 @@ func NewAssistant(name, description string) Assistant {
 			Id:          id,
 			Name:        name,
 			Description: description,
-			Model:       string(ModelGPT35Turbo),
+			Model:       ModelGPT35Turbo,
 			Placeholder: "How can I help you?",
 			Messages:    nil,
 			Functions:   nil,
@@ -135,23 +130,75 @@ func (a *Assistant) String() string {
 	return fmt.Sprintf("(%s) {%s}", a.description.Id, a.description.Model)
 }
 
-func (a *Assistant) Model(v model) {
-	a.description.Model = string(v)
+func (a *Assistant) Model(v string) {
+	a.description.Model = v
 }
 
 func (a *Assistant) Placeholder(v string) {
 	a.description.Placeholder = v
 }
 
-func (a *Assistant) AddMessage(role role, content string) {
-	hidden := false
-	if role == RoleUserHidden || role == RoleAssistantHidden {
-		hidden = true
-		role = role[:len(role)-len("-hidden")]
+// AddMessages adds messages from a string.
+//
+// The format of the string is:
+//
+// { some text; this usually begins with the system message }
+//
+// @@@ {ROLE} =====
+//
+// { text; usually the second message is a user message }
+//
+// { text }
+//
+// @@@ {ROLE} =====
+//
+// { text }
+//
+// { text }
+//
+// { text }
+func (a *Assistant) AddMessages(content string) {
+	r := strings.NewReader(content)
+	scanner := bufio.NewScanner(r)
+	roleStr := "system"
+	var lines string
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(strings.TrimSpace(line), "@@@") {
+			// add the message
+			a.AddMessageHidden(roleStr, lines)
+			// reset the lines
+			lines = ""
+			// get the roleStr
+			line = strings.ReplaceAll(line, "  ", " ")
+			parts := strings.Split(line, " ")
+			roleStr = parts[1]
+		} else {
+			lines += line + "\n"
+		}
 	}
+	if lines != "" {
+		a.AddMessageHidden(roleStr, lines)
+	}
+
+	err := scanner.Err()
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (a *Assistant) AddMessage(role string, content string) {
 	a.description.Messages = append(a.description.Messages, assistantDescriptionMessage{
-		Role:    string(role),
-		Hidden:  hidden,
+		Role:    strings.ToLower(role),
+		Hidden:  false,
+		Content: strings.TrimSpace(content),
+	})
+}
+
+func (a *Assistant) AddMessageHidden(role string, content string) {
+	a.description.Messages = append(a.description.Messages, assistantDescriptionMessage{
+		Role:    strings.ToLower(role),
+		Hidden:  true,
 		Content: strings.TrimSpace(content),
 	})
 }
@@ -349,6 +396,8 @@ func (a *Assistant) Execute(r io.Reader) string {
 			_ = h.Close()
 		}
 	}(logger)
+
+	slog.SetDefault(logger)
 
 	scanner := bufio.NewScanner(r)
 
