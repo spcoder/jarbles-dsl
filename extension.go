@@ -27,6 +27,8 @@ type ExtensionAction struct {
 	Function    ActionFunction
 	Extension   *Extension
 	UrlPath     string
+	Cron        string
+	CronSummary string
 }
 
 type Extension struct {
@@ -94,6 +96,28 @@ func (e *Extension) AddAction(id string, fn ExtensionFunction) {
 		},
 		Extension: e,
 		UrlPath:   fmt.Sprintf("/extension/action/%s/%s", e.Id, id),
+	})
+}
+
+func (e *Extension) AddCron(cron, summary string, fn ExtensionFunction) {
+	id := randomId()
+	e.addAction(ExtensionAction{
+		Id:          id,
+		Index:       -1,
+		Name:        id,
+		Description: id,
+		Nav:         false,
+		Function: func(payload string) (string, error) {
+			response, err := fn(payload)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("jarbles_title:\n%s\n\njarbles_head:\n%s\n\njarbles_body:\n%s", response.Title, response.Head, response.Body), nil
+		},
+		Extension:   e,
+		UrlPath:     fmt.Sprintf("/extension/action/%s/%s", e.Id, id),
+		Cron:        cron,
+		CronSummary: summary,
 	})
 }
 
@@ -215,6 +239,8 @@ func (e *Extension) describe() (string, error) {
 		Name        string `json:"name"`
 		Description string `json:"description"`
 		Nav         bool   `json:"nav"`
+		Cron        string `json:"cron"`
+		CronSummary string `json:"cronSummary"`
 	}
 
 	type JarblesExtension struct {
