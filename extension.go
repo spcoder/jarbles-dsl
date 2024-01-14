@@ -11,9 +11,11 @@ import (
 )
 
 type ExtensionResponse struct {
-	Title string
-	Head  string
-	Body  string
+	HtmlTitle string `json:"html_title,omitempty"`
+	HtmlHead  string `json:"html_head,omitempty"`
+	HtmlBody  string `json:"html_body,omitempty"`
+	Subject   string `json:"subject,omitempty"`
+	TextBody  string `json:"text_body,omitempty"`
 }
 
 type ExtensionFunction func(payload string) (*ExtensionResponse, error)
@@ -28,7 +30,6 @@ type ExtensionAction struct {
 	Extension   *Extension
 	UrlPath     string
 	Cron        string
-	CronSummary string
 }
 
 type Extension struct {
@@ -48,11 +49,13 @@ func NewExtension(name, description string) Extension {
 	}
 }
 
-func NewExtensionResponse(title, head, body string) *ExtensionResponse {
+func NewExtensionResponse(htmlTitle, htmlHead, htmlBody, subject, textBody string) *ExtensionResponse {
 	return &ExtensionResponse{
-		Title: title,
-		Head:  head,
-		Body:  body,
+		HtmlTitle: htmlTitle,
+		HtmlHead:  htmlHead,
+		HtmlBody:  htmlBody,
+		Subject:   subject,
+		TextBody:  textBody,
 	}
 }
 
@@ -72,8 +75,11 @@ func (e *Extension) AddNavigation(id, name, description string, fn ExtensionFunc
 			if err != nil {
 				return "", err
 			}
-
-			return fmt.Sprintf("jarbles_title:\n%s\n\njarbles_head:\n%s\n\njarbles_body:\n%s", response.Title, response.Head, response.Body), nil
+			data, err := json.Marshal(response)
+			if err != nil {
+				return "", fmt.Errorf("error while marshaling response: %w", err)
+			}
+			return string(data), nil
 		},
 		Extension: e,
 		UrlPath:   fmt.Sprintf("/extension/action/%s/%s", e.Id, id),
@@ -92,17 +98,20 @@ func (e *Extension) AddAction(id string, fn ExtensionFunction) {
 			if err != nil {
 				return "", err
 			}
-			return fmt.Sprintf("jarbles_title:\n%s\n\njarbles_head:\n%s\n\njarbles_body:\n%s", response.Title, response.Head, response.Body), nil
+			data, err := json.Marshal(response)
+			if err != nil {
+				return "", fmt.Errorf("error while marshaling response: %w", err)
+			}
+			return string(data), nil
 		},
 		Extension: e,
 		UrlPath:   fmt.Sprintf("/extension/action/%s/%s", e.Id, id),
 	})
 }
 
-func (e *Extension) AddCron(cron, summary string, fn ExtensionFunction) {
-	id := randomId()
+func (e *Extension) AddCron(id, cron string, fn ExtensionFunction) {
 	e.addAction(ExtensionAction{
-		Id:          id,
+		Id:          slugify(id),
 		Index:       -1,
 		Name:        id,
 		Description: id,
@@ -112,12 +121,15 @@ func (e *Extension) AddCron(cron, summary string, fn ExtensionFunction) {
 			if err != nil {
 				return "", err
 			}
-			return fmt.Sprintf("jarbles_title:\n%s\n\njarbles_head:\n%s\n\njarbles_body:\n%s", response.Title, response.Head, response.Body), nil
+			data, err := json.Marshal(response)
+			if err != nil {
+				return "", fmt.Errorf("error while marshaling response: %w", err)
+			}
+			return string(data), nil
 		},
-		Extension:   e,
-		UrlPath:     fmt.Sprintf("/extension/action/%s/%s", e.Id, id),
-		Cron:        cron,
-		CronSummary: summary,
+		Extension: e,
+		UrlPath:   fmt.Sprintf("/extension/action/%s/%s", e.Id, id),
+		Cron:      cron,
 	})
 }
 
@@ -263,6 +275,7 @@ func (e *Extension) describe() (string, error) {
 			Name:        op.Name,
 			Description: op.Description,
 			Nav:         op.Nav,
+			Cron:        op.Cron,
 		}
 	}
 
