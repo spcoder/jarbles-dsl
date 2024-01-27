@@ -107,6 +107,10 @@ func LogDir() string {
 	return userDir("log")
 }
 
+func ConfigDir() string {
+	return userDir("config")
+}
+
 //goland:noinspection GoUnusedExportedFunction
 func NewAssistant(name, description string) Assistant {
 	id := slugify(name)
