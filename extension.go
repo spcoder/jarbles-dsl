@@ -2,6 +2,7 @@ package jarbles_framework
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ type ExtensionResponse struct {
 	HtmlBody  string `json:"html_body,omitempty"`
 	Subject   string `json:"subject,omitempty"`
 	TextBody  string `json:"text_body,omitempty"`
+	NoLayout  bool   `json:"no_layout,omitempty"`
 }
 
 type ExtensionFunction func(payload string) (*ExtensionResponse, error)
@@ -212,11 +214,11 @@ func (e *Extension) Execute(r io.Reader) (string, error) {
 	// route the request and output the response
 	output, err := e.route(action, payload)
 	if err != nil {
-		logger.Error("operation response", "error", err.Error())
+		logger.Log(context.Background(), slog.LevelDebug-1, "operation response", "error", err.Error())
 		return "", err
 	}
 
-	logger.Debug("operation response", "output", output)
+	logger.Log(context.Background(), slog.LevelDebug-1, "operation response", "output", output)
 	return output, nil
 }
 

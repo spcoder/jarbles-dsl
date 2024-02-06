@@ -7,15 +7,14 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
+	"time"
 )
 
 type LibLogger struct {
 	stringer fmt.Stringer
 	w        io.WriteCloser
 	minLevel slog.Level
-	trunc    int
+	pretty   bool
 }
 
 func NewLibLogger(stringer fmt.Stringer, logname string) (*slog.Logger, error) {
@@ -39,17 +38,13 @@ func NewLibLogger(stringer fmt.Stringer, logname string) (*slog.Logger, error) {
 		}
 	}
 
-	trunc := 0
-	truncStr := os.Getenv("JARBLES_LOG_TRUNCATE")
-	if truncStr != "" {
-		tl, err := strconv.Atoi(truncStr)
-		if err == nil {
-			trunc = 120
-		}
-		trunc = tl
+	pretty := true
+	prettyStr := os.Getenv("JARBLES_LOG_PRETTY")
+	if prettyStr == "false" {
+		pretty = false
 	}
 
-	return slog.New(&LibLogger{stringer: stringer, w: logfile, trunc: trunc, minLevel: minLevel}), nil
+	return slog.New(&LibLogger{stringer: stringer, w: logfile, minLevel: minLevel, pretty: pretty}), nil
 }
 
 func (l LibLogger) Enabled(context context.Context, level slog.Level) bool {
@@ -59,30 +54,46 @@ func (l LibLogger) Enabled(context context.Context, level slog.Level) bool {
 func (l LibLogger) Handle(context context.Context, record slog.Record) error {
 	message := record.Message
 
-	record.Attrs(func(attr slog.Attr) bool {
-		message += fmt.Sprintf(" %v", attr)
-		return true
-	})
+	line := ""
+	if l.pretty {
+		attrs := make([]string, 0)
+		record.Attrs(func(attr slog.Attr) bool {
+			attrs = append(attrs, fmt.Sprintf("- %v: %v", attr.Key, attr.Value))
+			return true
+		})
 
-	timestamp := record.Time.Format("15:04:05")
-	line := fmt.Sprintf("[%v] %s %v %v", record.Level, l.stringer.String(), timestamp, message)
-
-	if l.trunc > 0 {
-		// truncate assumes that the user wants everything on a single line
-		// first, truncate by deleting everything after the first newline
-		nlp := strings.Index(line, "\n")
-		if nlp != -1 {
-			line = line[:nlp] + "---"
+		timestamp := record.Time.Format(time.Kitchen)
+		line += fmt.Sprintf("\n%v %v %v\n", timestamp, levelAbbrev(record.Level), message)
+		for _, attr := range attrs {
+			line += fmt.Sprintf("  %v\n", attr)
 		}
+	} else {
+		record.Attrs(func(attr slog.Attr) bool {
+			message += fmt.Sprintf(" %v", attr)
+			return true
+		})
 
-		// next, truncate by length
-		if len(line) > l.trunc {
-			line = line[:l.trunc] + "..."
-		}
+		timestamp := record.Time.Format(time.Kitchen)
+		line = fmt.Sprintf("[%v] %s %v %v", record.Level, l.stringer.String(), timestamp, message)
 	}
 
 	_, err := fmt.Fprintf(l.w, "%s\n", line)
 	return err
+}
+
+func levelAbbrev(level slog.Level) string {
+	switch level {
+	case slog.LevelDebug:
+		return "DBG"
+	case slog.LevelInfo:
+		return "INF"
+	case slog.LevelWarn:
+		return "WRN"
+	case slog.LevelError:
+		return "ERR"
+	default:
+		return "???"
+	}
 }
 
 func (l LibLogger) WithAttrs(attrs []slog.Attr) slog.Handler {
