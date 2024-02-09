@@ -11,6 +11,7 @@ import (
 )
 
 type ActionFunction func(payload string) (string, error)
+type CommandFunction func(payload string) error
 
 //goland:noinspection GoUnusedExportedFunction
 func MustCurrentUser() *user.User {

@@ -34,11 +34,18 @@ type ExtensionAction struct {
 	Cron        string
 }
 
+type ExtensionCommand struct {
+	Id        string
+	Extension *Extension
+	Function  CommandFunction
+}
+
 type Extension struct {
 	Id          string
 	Name        string
 	Description string
 	actions     map[string]ExtensionAction
+	commands    map[string]ExtensionCommand
 }
 
 func NewExtension(name, description string) Extension {
@@ -111,6 +118,20 @@ func (e *Extension) AddAction(id string, fn ExtensionFunction) {
 	})
 }
 
+func (e *Extension) AddCommand(id string, fn CommandFunction) {
+	e.addCommand(ExtensionCommand{
+		Id: slugify(id),
+		Function: func(payload string) error {
+			err := fn(payload)
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+		Extension: e,
+	})
+}
+
 func (e *Extension) AddCron(id, cron string, fn ExtensionFunction) {
 	e.addAction(ExtensionAction{
 		Id:          slugify(id),
@@ -160,6 +181,13 @@ func (e *Extension) addAction(v ExtensionAction) {
 	e.actions[v.Id] = v
 }
 
+func (e *Extension) addCommand(v ExtensionCommand) {
+	if e.commands == nil {
+		e.commands = make(map[string]ExtensionCommand)
+	}
+	e.commands[v.Id] = v
+}
+
 func (e *Extension) Respond() {
 	output, err := e.Execute(os.Stdin)
 	if err != nil {
@@ -168,9 +196,11 @@ func (e *Extension) Respond() {
 			fmt.Printf(fmt.Sprintf("error while writing to stderr: %s", err.Error()))
 		}
 	} else {
-		_, err := fmt.Fprintf(os.Stdout, "%s", output)
-		if err != nil {
-			fmt.Printf(fmt.Sprintf("error while writing to stdout: %s", err.Error()))
+		if output != "" {
+			_, err := fmt.Fprintf(os.Stdout, "%s", output)
+			if err != nil {
+				fmt.Printf(fmt.Sprintf("error while writing to stdout: %s", err.Error()))
+			}
 		}
 	}
 }
@@ -192,9 +222,9 @@ func (e *Extension) Execute(r io.Reader) (string, error) {
 
 	scanner := bufio.NewScanner(r)
 
-	// grab the action
+	// grab the operation id
 	scanner.Scan()
-	action := scanner.Text()
+	operationId := scanner.Text()
 
 	// skip payload delimiter
 	scanner.Scan()
@@ -212,7 +242,7 @@ func (e *Extension) Execute(r io.Reader) (string, error) {
 	payload := strings.Join(lines, "\n")
 
 	// route the request and output the response
-	output, err := e.route(action, payload)
+	output, err := e.route(operationId, payload)
 	if err != nil {
 		logger.Log(context.Background(), slog.LevelDebug-1, "operation response", "error", err.Error())
 		return "", err
@@ -232,11 +262,18 @@ func (e *Extension) route(operationId, payload string) (string, error) {
 	case "describe":
 		return e.describe()
 	default:
-		for _, operation := range e.actions {
-			if operation.Id == operationId {
-				logger.Info("calling operation", "name", operationId)
-				logger.Debug("calling operation", "payload", payload)
-				return operation.Function(payload)
+		for _, action := range e.actions {
+			if action.Id == operationId {
+				logger.Info("calling action", "name", action.Id)
+				logger.Debug("calling action", "payload", payload)
+				return action.Function(payload)
+			}
+		}
+		for _, command := range e.commands {
+			if command.Id == operationId {
+				logger.Info("calling command", "name", command.Id)
+				logger.Debug("calling command", "payload", payload)
+				return "", command.Function(payload)
 			}
 		}
 		return "", fmt.Errorf("unknown operation: %s", operationId)
@@ -257,27 +294,38 @@ func (e *Extension) describe() (string, error) {
 		CronSummary string `json:"cronSummary"`
 	}
 
+	type JarblesExtensionCommand struct {
+		Id string `json:"id"`
+	}
+
 	type JarblesExtension struct {
-		Id          string                            `json:"id"`
-		Name        string                            `json:"name"`
-		Description string                            `json:"description"`
-		Action      map[string]JarblesExtensionAction `json:"actions"`
+		Id          string                             `json:"id"`
+		Name        string                             `json:"name"`
+		Description string                             `json:"description"`
+		Actions     map[string]JarblesExtensionAction  `json:"actions"`
+		Commands    map[string]JarblesExtensionCommand `json:"commands"`
 	}
 
 	je := JarblesExtension{
 		Id:          e.Id,
 		Name:        e.Name,
 		Description: e.Description,
-		Action:      make(map[string]JarblesExtensionAction),
+		Actions:     make(map[string]JarblesExtensionAction),
+		Commands:    make(map[string]JarblesExtensionCommand),
 	}
 	for _, op := range e.actions {
-		je.Action[op.Id] = JarblesExtensionAction{
+		je.Actions[op.Id] = JarblesExtensionAction{
 			Id:          op.Id,
 			Index:       op.Index,
 			Name:        op.Name,
 			Description: op.Description,
 			Nav:         op.Nav,
 			Cron:        op.Cron,
+		}
+	}
+	for _, op := range e.commands {
+		je.Commands[op.Id] = JarblesExtensionCommand{
+			Id: op.Id,
 		}
 	}
 
