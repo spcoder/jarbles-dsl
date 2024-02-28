@@ -40,10 +40,16 @@ type ExtensionCommand struct {
 	Function  CommandFunction
 }
 
+type ExtensionCard struct {
+	Id   string `json:"id"`
+	Html string `json:"html"`
+}
+
 type Extension struct {
 	Id          string
 	Name        string
 	Description string
+	Cards       []ExtensionCard
 	actions     map[string]ExtensionAction
 	commands    map[string]ExtensionCommand
 }
@@ -72,28 +78,32 @@ func (e *Extension) String() string {
 	return fmt.Sprintf("(%s)", e.Id)
 }
 
-func (e *Extension) AddNavigation(id, name, description string, fn ExtensionFunction) {
-	e.addAction(ExtensionAction{
-		Id:          id,
-		Index:       len(e.actions),
-		Name:        name,
-		Description: description,
-		Nav:         true,
-		Function: func(payload string) (string, error) {
-			response, err := fn(payload)
-			if err != nil {
-				return "", err
-			}
-			data, err := json.Marshal(response)
-			if err != nil {
-				return "", fmt.Errorf("error while marshaling response: %w", err)
-			}
-			return string(data), nil
-		},
-		Extension: e,
-		UrlPath:   fmt.Sprintf("/extension/action/%s/%s", e.Id, id),
-	})
+func (e *Extension) AddCard(card ExtensionCard) {
+	e.Cards = append(e.Cards, card)
 }
+
+//func (e *Extension) AddNavigation(id, name, description string, fn ExtensionFunction) {
+//	e.addAction(ExtensionAction{
+//		Id:          id,
+//		Index:       len(e.actions),
+//		Name:        name,
+//		Description: description,
+//		Nav:         true,
+//		Function: func(payload string) (string, error) {
+//			response, err := fn(payload)
+//			if err != nil {
+//				return "", err
+//			}
+//			data, err := json.Marshal(response)
+//			if err != nil {
+//				return "", fmt.Errorf("error while marshaling response: %w", err)
+//			}
+//			return string(data), nil
+//		},
+//		Extension: e,
+//		UrlPath:   fmt.Sprintf("/extension/action/%s/%s", e.Id, id),
+//	})
+//}
 
 func (e *Extension) AddAction(id string, fn ExtensionFunction) {
 	e.addAction(ExtensionAction{
@@ -163,6 +173,14 @@ func (e *Extension) ActionById(id string) *ExtensionAction {
 		}
 	}
 	return nil
+}
+
+func (e *Extension) ActionUrl(id string) string {
+	action := e.ActionById(id)
+	if action != nil {
+		return action.UrlPath
+	}
+	return ""
 }
 
 func (e *Extension) NavigationByName(name string) *ExtensionAction {
@@ -298,12 +316,18 @@ func (e *Extension) describe() (string, error) {
 		Id string `json:"id"`
 	}
 
+	type JarblesExtensionCard struct {
+		Id   string `json:"id"`
+		Html string `json:"html"`
+	}
+
 	type JarblesExtension struct {
 		Id          string                             `json:"id"`
 		Name        string                             `json:"name"`
 		Description string                             `json:"description"`
 		Actions     map[string]JarblesExtensionAction  `json:"actions"`
 		Commands    map[string]JarblesExtensionCommand `json:"commands"`
+		Cards       []JarblesExtensionCard             `json:"cards"`
 	}
 
 	je := JarblesExtension{
@@ -312,6 +336,7 @@ func (e *Extension) describe() (string, error) {
 		Description: e.Description,
 		Actions:     make(map[string]JarblesExtensionAction),
 		Commands:    make(map[string]JarblesExtensionCommand),
+		Cards:       make([]JarblesExtensionCard, 0),
 	}
 	for _, op := range e.actions {
 		je.Actions[op.Id] = JarblesExtensionAction{
@@ -327,6 +352,12 @@ func (e *Extension) describe() (string, error) {
 		je.Commands[op.Id] = JarblesExtensionCommand{
 			Id: op.Id,
 		}
+	}
+	for _, card := range e.Cards {
+		je.Cards = append(je.Cards, JarblesExtensionCard{
+			Id:   card.Id,
+			Html: card.Html,
+		})
 	}
 
 	data, err := json.Marshal(je)
