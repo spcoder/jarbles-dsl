@@ -3,7 +3,6 @@ package jarbles_framework
 import (
 	"bufio"
 	_ "embed"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -45,45 +44,8 @@ type Action struct {
 	Function          ActionFunction
 }
 
-type assistantDescriptionMessage struct {
-	Role    string `json:"role"`
-	Hidden  bool   `json:"hidden"`
-	Content string `json:"content"`
-}
-
-type assistantDescriptionFunction struct {
-	Name        string                                 `json:"name"`
-	Description string                                 `json:"description"`
-	Properties  []assistantDescriptionFunctionProperty `json:"properties"`
-	Required    []string                               `json:"required"`
-}
-
-type assistantDescriptionFunctionProperty struct {
-	Name        string   `json:"name"`
-	Type        string   `json:"type"`
-	Description string   `json:"description"`
-	Enum        []string `json:"enum"`
-}
-
-type quicklink struct {
-	Title   string `json:"title"`
-	Content string `json:"content"`
-}
-
-type assistantDescription struct {
-	Id          string                         `json:"id"`
-	Name        string                         `json:"name"`
-	Description string                         `json:"description"`
-	Placeholder string                         `json:"placeholder"`
-	Model       string                         `json:"model"`
-	Messages    []assistantDescriptionMessage  `json:"messages"`
-	Functions   []assistantDescriptionFunction `json:"functions"`
-	Quicklinks  []quicklink                    `json:"quicklinks"`
-}
-
 type Assistant struct {
-	description assistantDescription
-	avatarImage []byte
+	description frameworkAssistant
 	actions     map[string]Action
 }
 
@@ -112,26 +74,22 @@ func ConfigDir() string {
 }
 
 //goland:noinspection GoUnusedExportedFunction
-func NewAssistant(name, description string) Assistant {
-	id := slugify(name)
-
+func NewAssistant(staticID, name, description string) Assistant {
 	return Assistant{
-		avatarImage: avatar,
-		description: assistantDescription{
-			Id:          id,
+		description: frameworkAssistant{
+			StaticID:    staticID,
 			Name:        name,
 			Description: description,
 			Model:       ModelGPT35Turbo,
 			Placeholder: "How can I help you?",
-			Messages:    nil,
-			Functions:   nil,
+			Tools:       nil,
 			Quicklinks:  nil,
 		},
 	}
 }
 
 func (a *Assistant) String() string {
-	return fmt.Sprintf("(%s) {%s}", a.description.Id, a.description.Model)
+	return fmt.Sprintf("(%s) {%s}", a.description.StaticID, a.description.Model)
 }
 
 func (a *Assistant) Model(v string) {
@@ -142,73 +100,8 @@ func (a *Assistant) Placeholder(v string) {
 	a.description.Placeholder = v
 }
 
-// AddMessages adds messages from a string.
-//
-// The format of the string is:
-//
-// { some text; this usually begins with the system message }
-//
-// @@@ {ROLE} =====
-//
-// { text; usually the second message is a user message }
-//
-// { text }
-//
-// @@@ {ROLE} =====
-//
-// { text }
-//
-// { text }
-//
-// { text }
-func (a *Assistant) AddMessages(content string) {
-	r := strings.NewReader(content)
-	scanner := bufio.NewScanner(r)
-	roleStr := "system"
-	var lines string
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(strings.TrimSpace(line), "@@@") {
-			// add the message
-			a.AddMessageHidden(roleStr, lines)
-			// reset the lines
-			lines = ""
-			// get the roleStr
-			line = strings.ReplaceAll(line, "  ", " ")
-			parts := strings.Split(line, " ")
-			roleStr = parts[1]
-		} else {
-			lines += line + "\n"
-		}
-	}
-	if lines != "" {
-		a.AddMessageHidden(roleStr, lines)
-	}
-
-	err := scanner.Err()
-	if err != nil {
-		panic(err)
-	}
-}
-
-func (a *Assistant) AddMessage(role string, content string) {
-	a.description.Messages = append(a.description.Messages, assistantDescriptionMessage{
-		Role:    strings.ToLower(role),
-		Hidden:  false,
-		Content: strings.TrimSpace(content),
-	})
-}
-
-func (a *Assistant) AddMessageHidden(role string, content string) {
-	a.description.Messages = append(a.description.Messages, assistantDescriptionMessage{
-		Role:    strings.ToLower(role),
-		Hidden:  true,
-		Content: strings.TrimSpace(content),
-	})
-}
-
-func (a *Assistant) Image(v []byte) {
-	a.avatarImage = v
+func (a *Assistant) AddInstructions(v string) {
+	a.description.Instructions = v
 }
 
 func (a *Assistant) AddQuicklink(title, content string) {
@@ -224,26 +117,34 @@ func (a *Assistant) AddAction(v Action) {
 	}
 	a.actions[v.Name] = v
 
-	properties := make([]assistantDescriptionFunctionProperty, 0)
-	for _, argument := range v.Arguments {
-		properties = append(properties, assistantDescriptionFunctionProperty{
-			Name:        argument.Name,
-			Type:        argument.Type,
-			Description: argument.Description,
-			Enum:        argument.Enum,
-		})
+	t := tool{
+		Type: "function",
+		Function: &toolFunction{
+			Name:        v.Name,
+			Description: v.Description,
+		},
 	}
 
-	a.description.Functions = append(a.description.Functions, assistantDescriptionFunction{
-		Name:        v.Name,
-		Description: v.Description,
-		Properties:  properties,
-		Required:    v.RequiredArguments,
-	})
+	if v.Arguments != nil {
+		t.Function.Parameters = &functionParameters{
+			Type:       "object",
+			Required:   v.RequiredArguments,
+			Properties: make(map[string]functionProperty),
+		}
+		for _, argument := range v.Arguments {
+			t.Function.Parameters.Properties[argument.Name] = functionProperty{
+				Type:        argument.Type,
+				Description: argument.Description,
+				Enum:        argument.Enum,
+			}
+		}
+	}
+
+	a.description.Tools = append(a.description.Tools, t)
 }
 
 func (a *Assistant) ConfigFilename() (string, error) {
-	return filepath.Join(AssistantsDir(), a.description.Id+".config"), nil
+	return filepath.Join(AssistantsDir(), a.description.StaticID+".config"), nil
 }
 
 func (a *Assistant) ConfigGet(key, defaultValue string) (string, error) {
@@ -444,8 +345,6 @@ func (a *Assistant) route(actionName, payload string) (string, error) {
 	switch actionName {
 	case "describe":
 		return a.describe()
-	case "image":
-		return a.image(), nil
 	default:
 		for _, action := range a.actions {
 			if action.Name == actionName {
@@ -465,9 +364,4 @@ func (a *Assistant) describe() (string, error) {
 		return "", fmt.Errorf("error while marshaling json: %w", err)
 	}
 	return string(data), nil
-}
-
-func (a *Assistant) image() string {
-	logger.Debug("image called")
-	return base64.StdEncoding.EncodeToString(a.avatarImage)
 }
