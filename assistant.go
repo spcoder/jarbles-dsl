@@ -14,8 +14,6 @@ import (
 )
 
 var (
-	//go:embed avatar.jpeg
-	avatar []byte
 	logger *slog.Logger
 )
 
@@ -67,10 +65,6 @@ func AssistantsDir() string {
 
 func LogDir() string {
 	return userDir("log")
-}
-
-func ConfigDir() string {
-	return userDir("config")
 }
 
 //goland:noinspection GoUnusedExportedFunction
@@ -143,153 +137,15 @@ func (a *Assistant) AddAction(v Action) {
 	a.description.Tools = append(a.description.Tools, t)
 }
 
-func (a *Assistant) ConfigFilename() (string, error) {
-	return filepath.Join(AssistantsDir(), a.description.StaticID+".config"), nil
-}
-
-func (a *Assistant) ConfigGet(key, defaultValue string) (string, error) {
-	configFilename, err := a.ConfigFilename()
-	if err != nil {
-		logger.Error("error getting config filename: %s", err.Error())
-		return "", fmt.Errorf("error while getting config filename: %w", err)
-	}
-
-	file, err := os.Open(configFilename)
-	if err != nil {
-		logger.Error("error while opening config file: %s", err.Error())
-		return "", fmt.Errorf("error while opening config file: %w", err)
-	}
-	defer func(file *os.File) {
-		_ = file.Close()
-	}(file)
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		k, v, found := strings.Cut(line, "=")
-		if found && k == key {
-			return v, nil
-		}
-	}
-
-	err = scanner.Err()
-	if err != nil {
-		logger.Error("error while scanning config file: %s", err.Error())
-		return "", fmt.Errorf("error while scanning config file: %w", err)
-	}
-
-	return defaultValue, nil
-}
-
-func (a *Assistant) ConfigSet(key string, value string) error {
-	configFilename, err := a.ConfigFilename()
-	if err != nil {
-		logger.Error("error while getting config filename: %s", err.Error())
-		return fmt.Errorf("error while getting config filename: %w", err)
-	}
-
-	file, err := os.OpenFile(configFilename, os.O_RDWR|os.O_CREATE, 0644)
-	if err != nil {
-		logger.Error("error while opening config file: %s", err.Error())
-		return fmt.Errorf("error while opening config file: %w", err)
-	}
-	defer func(file *os.File) {
-		_ = file.Close()
-	}(file)
-
-	var lines []string
-	updated := false
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		k, _, found := strings.Cut(line, "=")
-		if found && k == key {
-			updated = true
-			line = key + "=" + value
-		}
-		lines = append(lines, line)
-	}
-
-	err = scanner.Err()
-	if err != nil {
-		logger.Error("error while scanning config file: %s", err.Error())
-		return fmt.Errorf("error while scanning config file: %w", err)
-	}
-
-	if !updated {
-		lines = append(lines, key+"="+value)
-	}
-
-	_, err = file.Seek(0, 0) // move the cursor to the start
-	if err != nil {
-		logger.Error("error while seeking config file: %s", err.Error())
-		return fmt.Errorf("error while seeking config file: %w", err)
-	}
-
-	err = file.Truncate(0) // clear the file
-	if err != nil {
-		logger.Error("error while truncating config file: %s", err.Error())
-		return fmt.Errorf("error while truncating config file: %w", err)
-	}
-
-	writer := bufio.NewWriter(file)
-	for _, line := range lines {
-		_, err := writer.WriteString(line + "\n")
-		if err != nil {
-			logger.Error("error while writing to config file: %s", err.Error())
-			return fmt.Errorf("error while writing to config file: %w", err)
-		}
-	}
-
-	err = writer.Flush()
-	if err != nil {
-		logger.Error("error while flushing config file: %s", err.Error())
-		return fmt.Errorf("error while flushing config file: %w", err)
-	}
-
-	return nil
-}
-
-func (a *Assistant) ConfigMap() (map[string]string, error) {
-	configFilename, err := a.ConfigFilename()
-	if err != nil {
-		logger.Error("error while getting config filename: %s", err.Error())
-		return nil, fmt.Errorf("error while getting config filename: %w", err)
-	}
-
-	file, err := os.Open(configFilename)
-	if err != nil {
-		logger.Error("error while opening config file: %s", err.Error())
-		return nil, fmt.Errorf("error while opening config file: %w", err)
-	}
-	defer func(file *os.File) {
-		_ = file.Close()
-	}(file)
-
-	keyValues := make(map[string]string)
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		k, v, found := strings.Cut(line, "=")
-		if found {
-			keyValues[k] = v
-		}
-	}
-
-	err = scanner.Err()
-	if err != nil {
-		logger.Error("error while scanning config file: %s", err.Error())
-		return nil, fmt.Errorf("error while scanning config file: %w", err)
-	}
-
-	return keyValues, nil
-}
-
 func (a *Assistant) Respond() {
-	fmt.Printf(a.Execute(os.Stdin))
+	fmt.Printf(a.execute(os.Stdin))
 }
 
-func (a *Assistant) Execute(r io.Reader) string {
+func (a *Assistant) Test(r io.Reader) string {
+	return a.execute(r)
+}
+
+func (a *Assistant) execute(r io.Reader) string {
 	var err error
 	logger, err = NewLibLogger(a, "assistants.log")
 	if err != nil {
