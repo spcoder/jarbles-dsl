@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"github.com/BurntSushi/toml"
 	"io"
 	"log/slog"
 	"os"
@@ -80,6 +81,21 @@ func NewAssistant(staticID, name, description string) Assistant {
 			Quicklinks:  nil,
 		},
 	}
+}
+
+func NewAssistantFromFile(file string) (Assistant, error) {
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return Assistant{}, fmt.Errorf("error while reading file: %w", err)
+	}
+
+	var fa frameworkAssistant
+	err = toml.Unmarshal(data, &fa)
+	if err != nil {
+		return Assistant{}, fmt.Errorf("error while unmarshaling toml: %w", err)
+	}
+
+	return Assistant{description: fa}, nil
 }
 
 func (a *Assistant) String() string {

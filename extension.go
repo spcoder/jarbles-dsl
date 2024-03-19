@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/spcoder/jarbles-framework/lib"
 	"io"
 	"log/slog"
 	"os"
@@ -27,7 +28,6 @@ type ExtensionAction struct {
 	Index       int
 	Name        string
 	Description string
-	Nav         bool
 	Function    ActionFunction
 	Extension   *Extension
 	UrlPath     string
@@ -78,32 +78,16 @@ func (e *Extension) String() string {
 	return fmt.Sprintf("(%s)", e.Id)
 }
 
-func (e *Extension) AddCard(card ExtensionCard) {
-	e.Cards = append(e.Cards, card)
+func (e *Extension) AddCard(title, description, id string) {
+	e.Cards = append(e.Cards, ExtensionCard{
+		Id:   slugify(title),
+		Html: lib.CardDefault(title, description, e.ActionUrl(id)),
+	})
 }
 
-//func (e *Extension) AddNavigation(id, name, description string, fn ExtensionFunction) {
-//	e.addAction(ExtensionAction{
-//		Id:          id,
-//		Index:       len(e.actions),
-//		Name:        name,
-//		Description: description,
-//		Nav:         true,
-//		Function: func(payload string) (string, error) {
-//			response, err := fn(payload)
-//			if err != nil {
-//				return "", err
-//			}
-//			data, err := json.Marshal(response)
-//			if err != nil {
-//				return "", fmt.Errorf("error while marshaling response: %w", err)
-//			}
-//			return string(data), nil
-//		},
-//		Extension: e,
-//		UrlPath:   fmt.Sprintf("/extension/action/%s/%s", e.Id, id),
-//	})
-//}
+func (e *Extension) AddCardCustom(card ExtensionCard) {
+	e.Cards = append(e.Cards, card)
+}
 
 func (e *Extension) AddAction(id string, fn ExtensionFunction) {
 	e.addAction(ExtensionAction{
@@ -111,7 +95,6 @@ func (e *Extension) AddAction(id string, fn ExtensionFunction) {
 		Index:       len(e.actions),
 		Name:        id,
 		Description: id,
-		Nav:         false,
 		Function: func(payload string) (string, error) {
 			response, err := fn(payload)
 			if err != nil {
@@ -148,7 +131,6 @@ func (e *Extension) AddCron(id, cron string, fn ExtensionFunction) {
 		Index:       -1,
 		Name:        id,
 		Description: id,
-		Nav:         false,
 		Function: func(payload string) (string, error) {
 			response, err := fn(payload)
 			if err != nil {
@@ -181,15 +163,6 @@ func (e *Extension) ActionUrl(id string) string {
 		return action.UrlPath
 	}
 	return ""
-}
-
-func (e *Extension) NavigationByName(name string) *ExtensionAction {
-	for _, action := range e.actions {
-		if action.Name == name && action.Nav {
-			return &action
-		}
-	}
-	return nil
 }
 
 func (e *Extension) addAction(v ExtensionAction) {
@@ -307,7 +280,6 @@ func (e *Extension) describe() (string, error) {
 		Index       int    `json:"index"`
 		Name        string `json:"name"`
 		Description string `json:"description"`
-		Nav         bool   `json:"nav"`
 		Cron        string `json:"cron"`
 		CronSummary string `json:"cronSummary"`
 	}
@@ -344,7 +316,6 @@ func (e *Extension) describe() (string, error) {
 			Index:       op.Index,
 			Name:        op.Name,
 			Description: op.Description,
-			Nav:         op.Nav,
 			Cron:        op.Cron,
 		}
 	}
