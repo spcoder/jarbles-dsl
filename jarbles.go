@@ -3,7 +3,7 @@ package jarbles_framework
 type functionProperty struct {
 	Type        string   `json:"type" toml:"type"`
 	Description string   `json:"description" toml:"description"`
-	Enum        []string `json:"enum" toml:"enum"`
+	Enum        []string `json:"enum,omitempty" toml:"enum,omitempty"`
 }
 
 type functionParameters struct {

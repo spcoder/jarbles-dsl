@@ -83,14 +83,9 @@ func NewAssistant(staticID, name, description string) Assistant {
 	}
 }
 
-func NewAssistantFromFile(file string) (Assistant, error) {
-	data, err := os.ReadFile(file)
-	if err != nil {
-		return Assistant{}, fmt.Errorf("error while reading file: %w", err)
-	}
-
+func NewAssistantFromTOML(data []byte) (Assistant, error) {
 	var fa frameworkAssistant
-	err = toml.Unmarshal(data, &fa)
+	err := toml.Unmarshal(data, &fa)
 	if err != nil {
 		return Assistant{}, fmt.Errorf("error while unmarshaling toml: %w", err)
 	}

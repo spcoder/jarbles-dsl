@@ -125,7 +125,7 @@ var StandardActions = struct {
 
 // safePath ensures that the file location specified by path is within the safeDir
 func safePath(safeDir, baseDir, name string) (string, error) {
-	path := filepath.Join(baseDir, strings.Replace(name, baseDir, "", 1))
+	path := filepath.Join(safeDir, strings.Replace(baseDir, safeDir, "", 1), strings.Replace(name, baseDir, "", 1))
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		LogError("error while getting absolute path", "path", path, "error", err.Error())
@@ -142,7 +142,8 @@ func safePath(safeDir, baseDir, name string) (string, error) {
 
 // safeDir ensures that the directory location specified by dir is within the safeDir
 func safeDir(safeDir, dir string) (string, error) {
-	absPath, err := filepath.Abs(dir)
+	path := filepath.Join(safeDir, strings.Replace(dir, safeDir, "", 1))
+	absPath, err := filepath.Abs(path)
 	if err != nil {
 		LogError("error while getting absolute path", "dir", dir, "error", err.Error())
 		return "", fmt.Errorf("error while getting absolute path at %s: %w", dir, err)
@@ -303,6 +304,11 @@ func listDir(safeDir string) ActionFunction {
 			}
 
 			if d.IsDir() {
+				// # ignore .git directories
+				if d.Name() == ".git" {
+					return filepath.SkipDir
+				}
+
 				abspath, err := filepath.Abs(path)
 				if err != nil {
 					LogError("error while getting absolute path", "path", path, "error", err.Error())
