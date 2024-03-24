@@ -13,9 +13,9 @@ import (
 )
 
 type ExtensionResponse struct {
-	HtmlTitle string `json:"html_title,omitempty"`
-	HtmlHead  string `json:"html_head,omitempty"`
-	HtmlBody  string `json:"html_body,omitempty"`
+	HTMLTitle string `json:"html_title,omitempty"`
+	HTMLHead  string `json:"html_head,omitempty"`
+	HTMLBody  string `json:"html_body,omitempty"`
 	Subject   string `json:"subject,omitempty"`
 	TextBody  string `json:"text_body,omitempty"`
 	NoLayout  bool   `json:"no_layout,omitempty"`
@@ -24,29 +24,29 @@ type ExtensionResponse struct {
 type ExtensionFunction func(payload string) (*ExtensionResponse, error)
 
 type ExtensionAction struct {
-	Id          string
+	ID          string
 	Index       int
 	Name        string
 	Description string
 	Function    ActionFunction
 	Extension   *Extension
-	UrlPath     string
+	URLPath     string
 	Cron        string
 }
 
 type ExtensionCommand struct {
-	Id        string
+	ID        string
 	Extension *Extension
 	Function  CommandFunction
 }
 
 type ExtensionCard struct {
-	Id   string `json:"id"`
-	Html string `json:"html"`
+	ID   string `json:"id"`
+	HTML string `json:"html"`
 }
 
 type Extension struct {
-	Id          string
+	ID          string
 	Name        string
 	Description string
 	Cards       []ExtensionCard
@@ -58,7 +58,7 @@ func NewExtension(name, description string) Extension {
 	id := slugify(name)
 
 	return Extension{
-		Id:          id,
+		ID:          id,
 		Name:        name,
 		Description: description,
 	}
@@ -66,22 +66,22 @@ func NewExtension(name, description string) Extension {
 
 func NewExtensionResponse(htmlTitle, htmlHead, htmlBody, subject, textBody string) *ExtensionResponse {
 	return &ExtensionResponse{
-		HtmlTitle: htmlTitle,
-		HtmlHead:  htmlHead,
-		HtmlBody:  htmlBody,
+		HTMLTitle: htmlTitle,
+		HTMLHead:  htmlHead,
+		HTMLBody:  htmlBody,
 		Subject:   subject,
 		TextBody:  textBody,
 	}
 }
 
 func (e *Extension) String() string {
-	return fmt.Sprintf("(%s)", e.Id)
+	return fmt.Sprintf("(%s)", e.ID)
 }
 
 func (e *Extension) AddCard(title, description, id string) {
 	e.Cards = append(e.Cards, ExtensionCard{
-		Id:   slugify(title),
-		Html: lib.CardDefault(title, description, e.ActionUrl(id)),
+		ID:   id,
+		HTML: lib.CardDefault(e.Name, title, description, e.ActionUrl(id)),
 	})
 }
 
@@ -91,7 +91,7 @@ func (e *Extension) AddCardCustom(card ExtensionCard) {
 
 func (e *Extension) AddAction(id string, fn ExtensionFunction) {
 	e.addAction(ExtensionAction{
-		Id:          slugify(id),
+		ID:          slugify(id),
 		Index:       len(e.actions),
 		Name:        id,
 		Description: id,
@@ -107,13 +107,13 @@ func (e *Extension) AddAction(id string, fn ExtensionFunction) {
 			return string(data), nil
 		},
 		Extension: e,
-		UrlPath:   fmt.Sprintf("/extension/action/%s/%s", e.Id, id),
+		URLPath:   fmt.Sprintf("/extension/action/%s/%s", e.ID, id),
 	})
 }
 
 func (e *Extension) AddCommand(id string, fn CommandFunction) {
 	e.addCommand(ExtensionCommand{
-		Id: slugify(id),
+		ID: slugify(id),
 		Function: func(payload string) error {
 			err := fn(payload)
 			if err != nil {
@@ -127,7 +127,7 @@ func (e *Extension) AddCommand(id string, fn CommandFunction) {
 
 func (e *Extension) AddCron(id, cron string, fn ExtensionFunction) {
 	e.addAction(ExtensionAction{
-		Id:          slugify(id),
+		ID:          slugify(id),
 		Index:       -1,
 		Name:        id,
 		Description: id,
@@ -143,14 +143,14 @@ func (e *Extension) AddCron(id, cron string, fn ExtensionFunction) {
 			return string(data), nil
 		},
 		Extension: e,
-		UrlPath:   fmt.Sprintf("/extension/action/%s/%s", e.Id, id),
+		URLPath:   fmt.Sprintf("/extension/action/%s/%s", e.ID, id),
 		Cron:      cron,
 	})
 }
 
 func (e *Extension) ActionById(id string) *ExtensionAction {
 	for _, action := range e.actions {
-		if action.Id == id {
+		if action.ID == id {
 			return &action
 		}
 	}
@@ -160,7 +160,7 @@ func (e *Extension) ActionById(id string) *ExtensionAction {
 func (e *Extension) ActionUrl(id string) string {
 	action := e.ActionById(id)
 	if action != nil {
-		return action.UrlPath
+		return action.URLPath
 	}
 	return ""
 }
@@ -169,14 +169,14 @@ func (e *Extension) addAction(v ExtensionAction) {
 	if e.actions == nil {
 		e.actions = make(map[string]ExtensionAction)
 	}
-	e.actions[v.Id] = v
+	e.actions[v.ID] = v
 }
 
 func (e *Extension) addCommand(v ExtensionCommand) {
 	if e.commands == nil {
 		e.commands = make(map[string]ExtensionCommand)
 	}
-	e.commands[v.Id] = v
+	e.commands[v.ID] = v
 }
 
 func (e *Extension) Respond() {
@@ -254,15 +254,15 @@ func (e *Extension) route(operationId, payload string) (string, error) {
 		return e.describe()
 	default:
 		for _, action := range e.actions {
-			if action.Id == operationId {
-				logger.Info("calling action", "name", action.Id)
+			if action.ID == operationId {
+				logger.Info("calling action", "name", action.ID)
 				logger.Debug("calling action", "payload", payload)
 				return action.Function(payload)
 			}
 		}
 		for _, command := range e.commands {
-			if command.Id == operationId {
-				logger.Info("calling command", "name", command.Id)
+			if command.ID == operationId {
+				logger.Info("calling command", "name", command.ID)
 				logger.Debug("calling command", "payload", payload)
 				return "", command.Function(payload)
 			}
@@ -303,7 +303,7 @@ func (e *Extension) describe() (string, error) {
 	}
 
 	je := JarblesExtension{
-		Id:          e.Id,
+		Id:          e.ID,
 		Name:        e.Name,
 		Description: e.Description,
 		Actions:     make(map[string]JarblesExtensionAction),
@@ -311,8 +311,8 @@ func (e *Extension) describe() (string, error) {
 		Cards:       make([]JarblesExtensionCard, 0),
 	}
 	for _, op := range e.actions {
-		je.Actions[op.Id] = JarblesExtensionAction{
-			Id:          op.Id,
+		je.Actions[op.ID] = JarblesExtensionAction{
+			Id:          op.ID,
 			Index:       op.Index,
 			Name:        op.Name,
 			Description: op.Description,
@@ -320,14 +320,14 @@ func (e *Extension) describe() (string, error) {
 		}
 	}
 	for _, op := range e.commands {
-		je.Commands[op.Id] = JarblesExtensionCommand{
-			Id: op.Id,
+		je.Commands[op.ID] = JarblesExtensionCommand{
+			Id: op.ID,
 		}
 	}
 	for _, card := range e.Cards {
 		je.Cards = append(je.Cards, JarblesExtensionCard{
-			Id:   card.Id,
-			Html: card.Html,
+			Id:   card.ID,
+			Html: card.HTML,
 		})
 	}
 
