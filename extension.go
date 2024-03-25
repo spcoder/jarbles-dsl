@@ -54,23 +54,18 @@ type Extension struct {
 	commands    map[string]ExtensionCommand
 }
 
-func NewExtension(name, description string) Extension {
-	id := slugify(name)
+type NewExtensionOptions struct {
+	Name        string
+	Description string
+}
+
+func NewExtension(options NewExtensionOptions) Extension {
+	id := slugify(options.Name)
 
 	return Extension{
 		ID:          id,
-		Name:        name,
-		Description: description,
-	}
-}
-
-func NewExtensionResponse(htmlTitle, htmlHead, htmlBody, subject, textBody string) *ExtensionResponse {
-	return &ExtensionResponse{
-		HTMLTitle: htmlTitle,
-		HTMLHead:  htmlHead,
-		HTMLBody:  htmlBody,
-		Subject:   subject,
-		TextBody:  textBody,
+		Name:        options.Name,
+		Description: options.Description,
 	}
 }
 
@@ -78,10 +73,22 @@ func (e *Extension) String() string {
 	return fmt.Sprintf("(%s)", e.ID)
 }
 
-func (e *Extension) AddCard(title, description, id string) {
+type AddCardOptions struct {
+	ID          string
+	ActionID    string
+	Title       string
+	Description string
+}
+
+func (e *Extension) AddCard(options AddCardOptions) {
 	e.Cards = append(e.Cards, ExtensionCard{
-		ID:   id,
-		HTML: lib.CardDefault(e.Name, title, description, e.ActionUrl(id)),
+		ID: options.ID,
+		HTML: lib.CardDefault(lib.CardDefaultOptions{
+			ExtensionName: e.Name,
+			Title:         options.Title,
+			Description:   options.Description,
+			Href:          e.ActionUrl(options.ActionID),
+		}),
 	})
 }
 
@@ -89,14 +96,19 @@ func (e *Extension) AddCardCustom(card ExtensionCard) {
 	e.Cards = append(e.Cards, card)
 }
 
-func (e *Extension) AddAction(id string, fn ExtensionFunction) {
+type AddActionOptions struct {
+	ID       string
+	Function ExtensionFunction
+}
+
+func (e *Extension) AddAction(options AddActionOptions) {
 	e.addAction(ExtensionAction{
-		ID:          slugify(id),
+		ID:          slugify(options.ID),
 		Index:       len(e.actions),
-		Name:        id,
-		Description: id,
+		Name:        options.ID,
+		Description: options.ID,
 		Function: func(payload string) (string, error) {
-			response, err := fn(payload)
+			response, err := options.Function(payload)
 			if err != nil {
 				return "", err
 			}
@@ -107,15 +119,20 @@ func (e *Extension) AddAction(id string, fn ExtensionFunction) {
 			return string(data), nil
 		},
 		Extension: e,
-		URLPath:   fmt.Sprintf("/extension/action/%s/%s", e.ID, id),
+		URLPath:   fmt.Sprintf("/extension/action/%s/%s", e.ID, options.ID),
 	})
 }
 
-func (e *Extension) AddCommand(id string, fn CommandFunction) {
+type AddCommandOptions struct {
+	ID       string
+	Function CommandFunction
+}
+
+func (e *Extension) AddCommand(options AddCommandOptions) {
 	e.addCommand(ExtensionCommand{
-		ID: slugify(id),
+		ID: slugify(options.ID),
 		Function: func(payload string) error {
-			err := fn(payload)
+			err := options.Function(payload)
 			if err != nil {
 				return err
 			}
@@ -125,14 +142,20 @@ func (e *Extension) AddCommand(id string, fn CommandFunction) {
 	})
 }
 
-func (e *Extension) AddCron(id, cron string, fn ExtensionFunction) {
+type AddCronOptions struct {
+	ID       string
+	Cron     string
+	Function ExtensionFunction
+}
+
+func (e *Extension) AddCron(options AddCronOptions) {
 	e.addAction(ExtensionAction{
-		ID:          slugify(id),
+		ID:          slugify(options.ID),
 		Index:       -1,
-		Name:        id,
-		Description: id,
+		Name:        options.ID,
+		Description: options.ID,
 		Function: func(payload string) (string, error) {
-			response, err := fn(payload)
+			response, err := options.Function(payload)
 			if err != nil {
 				return "", err
 			}
@@ -143,8 +166,8 @@ func (e *Extension) AddCron(id, cron string, fn ExtensionFunction) {
 			return string(data), nil
 		},
 		Extension: e,
-		URLPath:   fmt.Sprintf("/extension/action/%s/%s", e.ID, id),
-		Cron:      cron,
+		URLPath:   fmt.Sprintf("/extension/action/%s/%s", e.ID, options.ID),
+		Cron:      options.Cron,
 	})
 }
 
@@ -180,27 +203,18 @@ func (e *Extension) addCommand(v ExtensionCommand) {
 }
 
 func (e *Extension) Respond() {
-	output, err := e.Execute(os.Stdin)
-	if err != nil {
-		_, err := fmt.Fprintf(os.Stderr, err.Error())
-		if err != nil {
-			fmt.Printf(fmt.Sprintf("error while writing to stderr: %s", err.Error()))
-		}
-	} else {
-		if output != "" {
-			_, err := fmt.Fprintf(os.Stdout, "%s", output)
-			if err != nil {
-				fmt.Printf(fmt.Sprintf("error while writing to stdout: %s", err.Error()))
-			}
-		}
-	}
+	fmt.Printf(e.execute(os.Stdin))
 }
 
-func (e *Extension) Execute(r io.Reader) (string, error) {
+func (e *Extension) Test(r io.Reader) string {
+	return e.execute(r)
+}
+
+func (e *Extension) execute(r io.Reader) string {
 	var err error
 	logger, err = NewLibLogger(e, "extensions.log")
 	if err != nil {
-		return "", fmt.Errorf("error while creating logger: %w", err)
+		return fmt.Sprintf("error while creating logger: %s", err.Error())
 	}
 	defer func(l *slog.Logger) {
 		h, ok := logger.Handler().(LibLogger)
@@ -226,7 +240,7 @@ func (e *Extension) Execute(r io.Reader) (string, error) {
 		lines = append(lines, scanner.Text())
 	}
 	if scanner.Err() != nil {
-		return "", fmt.Errorf("error while scanning: %w", scanner.Err())
+		return fmt.Sprintf("error while scanning: %s", scanner.Err())
 	}
 
 	// add newlines back
@@ -236,11 +250,11 @@ func (e *Extension) Execute(r io.Reader) (string, error) {
 	output, err := e.route(operationId, payload)
 	if err != nil {
 		logger.Log(context.Background(), slog.LevelDebug-1, "operation response", "error", err.Error())
-		return "", err
+		return err.Error()
 	}
 
 	logger.Log(context.Background(), slog.LevelDebug-1, "operation response", "output", output)
-	return output, nil
+	return output
 }
 
 // Payload builds a payload from an action and data. This is useful for testing.

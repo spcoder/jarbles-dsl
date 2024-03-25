@@ -8,16 +8,22 @@ import (
 //go:embed markup.css
 var css string
 
-func CardDefault(extensionName, title, description, href string) string {
+type CardDefaultOptions struct {
+	ExtensionName string
+	Title         string
+	Description   string
+	Href          string
+}
+
+func CardDefault(options CardDefaultOptions) string {
 	return Fragment(
 		Style(css),
-		A(Href(href), Class("card"),
+		A(Href(options.Href), Class("card"),
 			Div(Class("card__header"),
-				Div(Class("card__extension-name"), extensionName),
+				Div(Class("card__extension-name"), options.ExtensionName),
 			),
-			Div(Class("card__title"), title),
-			Div(Class("card__description"), description),
-			//A(Href(href), Class("card__button"), "Open"),
+			Div(Class("card__title"), options.Title),
+			Div(Class("card__description"), options.Description),
 		),
 	).Render()
 }

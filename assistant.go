@@ -68,13 +68,19 @@ func LogDir() string {
 	return userDir("log")
 }
 
+type NewAssistantOptions struct {
+	StaticID    string
+	Name        string
+	Description string
+}
+
 //goland:noinspection GoUnusedExportedFunction
-func NewAssistant(staticID, name, description string) Assistant {
+func NewAssistant(options NewAssistantOptions) Assistant {
 	return Assistant{
 		description: frameworkAssistant{
-			StaticID:    staticID,
-			Name:        name,
-			Description: description,
+			StaticID:    options.StaticID,
+			Name:        options.Name,
+			Description: options.Description,
 			Model:       ModelGPT35Turbo,
 			Placeholder: "How can I help you?",
 			Tools:       nil,
@@ -109,10 +115,15 @@ func (a *Assistant) AddInstructions(v string) {
 	a.description.Instructions = v
 }
 
-func (a *Assistant) AddQuicklink(title, content string) {
+type AddQuicklinkOptions struct {
+	Title   string
+	Content string
+}
+
+func (a *Assistant) AddQuicklink(options AddQuicklinkOptions) {
 	a.description.Quicklinks = append(a.description.Quicklinks, quicklink{
-		Title:   title,
-		Content: content,
+		Title:   options.Title,
+		Content: options.Content,
 	})
 }
 
@@ -201,7 +212,7 @@ func (a *Assistant) execute(r io.Reader) string {
 	}
 
 	logger.Debug("action response", "output", output)
-	return fmt.Sprintf(output)
+	return output
 }
 
 func (a *Assistant) Payload(action, data string) io.Reader {
