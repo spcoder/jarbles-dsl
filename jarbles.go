@@ -1,4 +1,4 @@
-package jarbles_framework
+package framework
 
 type functionProperty struct {
 	Type        string   `json:"type" toml:"type"`

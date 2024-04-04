@@ -1,4 +1,4 @@
-package jarbles_framework
+package framework
 
 import (
 	"context"
@@ -13,12 +13,13 @@ import (
 )
 
 //goland:noinspection GoUnusedGlobalVariable
-var StandardActions = struct {
-	ReadFile  func(string) Action
-	WriteFile func(string) Action
-	CopyFile  func(string, string) Action
-	ListDir   func(string) Action
-	Compile   func(string, string) Action
+var StandardTools = struct {
+	ReadFile       func(string) Action
+	WriteFile      func(string) Action
+	CopyFile       func(string, string) Action
+	ListDir        func(string) Action
+	Compile        func(string, string) Action
+	BuildExtension func(string) Action
 }{
 	ReadFile: func(safeDir string) Action {
 		return Action{
@@ -98,7 +99,7 @@ var StandardActions = struct {
 	// Requires a go.mod file.
 	Compile: func(safeSrc, safeDest string) Action {
 		return Action{
-			Name:        "build",
+			Name:        "compile",
 			Description: "compiles and builds a binary from go source code",
 			Function:    compile(safeSrc, safeDest),
 			Arguments: []ActionArguments{
@@ -118,7 +119,31 @@ var StandardActions = struct {
 					Description: "the filename of the output binary without the directory",
 				},
 			},
-			RequiredArguments: []string{"dir", "outputName"},
+			RequiredArguments: []string{"workingDir", "outputDir", "outputName"},
+		}
+	},
+	// Compile compiles and builds a binary from go source code.
+	// The go and goimports binaries must be in the PATH.
+	// The entrypoint must be main.go.
+	// Requires a go.mod file.
+	BuildExtension: func(safeSrc string) Action {
+		return Action{
+			Name:        "build-extension",
+			Description: "compiles and builds a jarbles extension from go source code",
+			Function:    buildExtension(safeSrc),
+			Arguments: []ActionArguments{
+				{
+					Name:        "workingDir",
+					Type:        "string",
+					Description: "the working directory that contains the source code",
+				},
+				{
+					Name:        "outputName",
+					Type:        "string",
+					Description: "the filename of the output binary without the directory",
+				},
+			},
+			RequiredArguments: []string{"workingDir", "outputName"},
 		}
 	},
 }
@@ -363,6 +388,46 @@ func compile(safeSrc, safeDest string) ActionFunction {
 			return "", fmt.Errorf("error while organizing imports: %s", err)
 		}
 
+		err = buildCommand(workingDir, outputDir, request.OutputName)
+		if err != nil {
+			return "", fmt.Errorf("error while building: %s", err)
+		}
+
+		return "compile completed successfully", nil
+	}
+}
+
+func buildExtension(safeSrc string) ActionFunction {
+	return func(payload string) (string, error) {
+		var request struct {
+			WorkingDir string `json:"workingDir"`
+			OutputName string `json:"outputName"`
+		}
+		err := json.Unmarshal([]byte(payload), &request)
+		if err != nil {
+			LogError("error while unmarshaling payload", "error", err.Error())
+			return "", fmt.Errorf("error while unmarshaling payload: %s", err)
+		}
+
+		workingDir, err := safeDir(safeSrc, request.WorkingDir)
+		if err != nil {
+			LogError("error while getting safe working directory", "error", err.Error())
+			return "", fmt.Errorf("error while getting safe working directory: %w", err)
+		}
+
+		LogDebug("compile", "workingDir", workingDir, "outputName", request.OutputName)
+
+		err = modTidyCommand(workingDir)
+		if err != nil {
+			return "", fmt.Errorf("error while downloading dependencies: %s", err)
+		}
+
+		err = goimportsCommand(workingDir)
+		if err != nil {
+			return "", fmt.Errorf("error while organizing imports: %s", err)
+		}
+
+		outputDir := userDir("extensions")
 		err = buildCommand(workingDir, outputDir, request.OutputName)
 		if err != nil {
 			return "", fmt.Errorf("error while building: %s", err)

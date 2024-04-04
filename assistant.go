@@ -1,4 +1,4 @@
-package jarbles_framework
+package framework
 
 import (
 	"bufio"
@@ -127,7 +127,7 @@ func (a *Assistant) AddQuicklink(options AddQuicklinkOptions) {
 	})
 }
 
-func (a *Assistant) AddAction(v Action) {
+func (a *Assistant) AddTool(v Action) {
 	if a.actions == nil {
 		a.actions = make(map[string]Action)
 	}

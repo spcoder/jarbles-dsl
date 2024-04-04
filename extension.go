@@ -1,4 +1,4 @@
-package jarbles_framework
+package framework
 
 import (
 	"bufio"
