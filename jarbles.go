@@ -34,6 +34,13 @@ type message struct {
 	Visible bool   `json:"visible,omitempty" toml:"visible,omitempty"`
 }
 
+type initiate struct {
+	Silence  int     `json:"silence,omitempty" toml:"silence,omitempty" yaml:"silence,omitempty"`
+	Chance   float64 `json:"chance,omitempty" toml:"chance,omitempty" yaml:"chance,omitempty"`
+	Retries  int     `json:"retries,omitempty" toml:"retries,omitempty" yaml:"retries,omitempty"`
+	Cooldown int     `json:"cooldown,omitempty" toml:"cooldown,omitempty" yaml:"cooldown,omitempty"`
+}
+
 type frameworkAssistant struct {
 	StaticID     string      `json:"static_id" toml:"static_id"`
 	Name         string      `json:"name" toml:"name"`
@@ -44,6 +51,7 @@ type frameworkAssistant struct {
 	Version      string      `json:"version,omitempty" toml:"version,omitempty"`
 	BinaryName   string      `json:"binary_name,omitempty" toml:"binary_name,omitempty"`
 	Placeholder  string      `json:"placeholder,omitempty" toml:"placeholder,omitempty"`
+	Initiate     initiate    `json:"initiate,omitempty" toml:"initiate,omitempty"`
 	Quicklinks   []quicklink `json:"quicklinks,omitempty" toml:"quicklinks,omitempty"`
 	Messages     []message   `json:"messages,omitempty" toml:"messages,omitempty"`
 }
