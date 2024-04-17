@@ -39,6 +39,7 @@ type initiate struct {
 	Chance   float64 `json:"chance,omitempty" toml:"chance,omitempty" yaml:"chance,omitempty"`
 	Retries  int     `json:"retries,omitempty" toml:"retries,omitempty" yaml:"retries,omitempty"`
 	Cooldown int     `json:"cooldown,omitempty" toml:"cooldown,omitempty" yaml:"cooldown,omitempty"`
+	Prompt   string  `json:"prompt,omitempty" toml:"prompt,omitempty" yaml:"prompt,omitempty"`
 }
 
 type frameworkAssistant struct {
