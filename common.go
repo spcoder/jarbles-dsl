@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+type ToolFunction func(payload string) (string, error)
 type ActionFunction func(payload string) (string, error)
 type CommandFunction func(payload string) error
 

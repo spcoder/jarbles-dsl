@@ -28,24 +28,24 @@ const (
 	RoleAssistant  string = "assistant"
 )
 
-type ActionArguments struct {
+type ToolArguments struct {
 	Name        string
 	Type        string
 	Description string
 	Enum        []string
 }
 
-type Action struct {
+type Tool struct {
 	Name              string
 	Description       string
-	Arguments         []ActionArguments
+	Arguments         []ToolArguments
 	RequiredArguments []string
-	Function          ActionFunction
+	Function          ToolFunction
 }
 
 type Assistant struct {
 	description frameworkAssistant
-	actions     map[string]Action
+	tools       map[string]Tool
 }
 
 func userDir(dir ...string) string {
@@ -127,11 +127,11 @@ func (a *Assistant) AddQuicklink(options AddQuicklinkOptions) {
 	})
 }
 
-func (a *Assistant) AddTool(v Action) {
-	if a.actions == nil {
-		a.actions = make(map[string]Action)
+func (a *Assistant) AddTool(v Tool) {
+	if a.tools == nil {
+		a.tools = make(map[string]Tool)
 	}
-	a.actions[v.Name] = v
+	a.tools[v.Name] = v
 
 	t := tool{
 		Type: "function",
@@ -184,9 +184,9 @@ func (a *Assistant) execute(r io.Reader) string {
 
 	scanner := bufio.NewScanner(r)
 
-	// grab the action
+	// grab the route name
 	scanner.Scan()
-	action := scanner.Text()
+	name := scanner.Text()
 
 	// skip payload delimiter
 	scanner.Scan()
@@ -205,33 +205,33 @@ func (a *Assistant) execute(r io.Reader) string {
 	payload := strings.Join(lines, "\n")
 
 	// route the request and output the response
-	output, err := a.route(action, payload)
+	output, err := a.route(name, payload)
 	if err != nil {
-		logger.Error("action response", "error", err.Error())
+		logger.Error("route response", "error", err.Error())
 		return err.Error()
 	}
 
-	logger.Debug("action response", "output", output)
+	logger.Debug("route response", "output", output)
 	return output
 }
 
-func (a *Assistant) Payload(action, data string) io.Reader {
-	return strings.NewReader(action + "\n\n" + data)
+func (a *Assistant) Payload(tool, data string) io.Reader {
+	return strings.NewReader(tool + "\n\n" + data)
 }
 
-func (a *Assistant) route(actionName, payload string) (string, error) {
-	switch actionName {
+func (a *Assistant) route(name, payload string) (string, error) {
+	switch name {
 	case "describe":
 		return a.describe()
 	default:
-		for _, action := range a.actions {
-			if action.Name == actionName {
-				logger.Info("calling action", "name", actionName)
-				logger.Debug("calling action", "payload", payload)
-				return action.Function(payload)
+		for _, tool := range a.tools {
+			if tool.Name == name {
+				logger.Info("calling tool", "name", name)
+				logger.Debug("calling tool", "payload", payload)
+				return tool.Function(payload)
 			}
 		}
-		return "", fmt.Errorf("unknown action: %s", actionName)
+		return "", fmt.Errorf("unknown route: %s", name)
 	}
 }
 

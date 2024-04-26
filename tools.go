@@ -14,19 +14,19 @@ import (
 
 //goland:noinspection GoUnusedGlobalVariable
 var StandardTools = struct {
-	ReadFile       func(string) Action
-	WriteFile      func(string) Action
-	CopyFile       func(string, string) Action
-	ListDir        func(string) Action
-	Compile        func(string, string) Action
-	BuildExtension func(string) Action
+	ReadFile       func(string) Tool
+	WriteFile      func(string) Tool
+	CopyFile       func(string, string) Tool
+	ListDir        func(string) Tool
+	Compile        func(string, string) Tool
+	BuildExtension func(string) Tool
 }{
-	ReadFile: func(safeDir string) Action {
-		return Action{
+	ReadFile: func(safeDir string) Tool {
+		return Tool{
 			Name:        "read-file",
 			Description: "reads a file",
 			Function:    readFile(safeDir),
-			Arguments: []ActionArguments{
+			Arguments: []ToolArguments{
 				{
 					Name:        "dir",
 					Type:        "string",
@@ -41,12 +41,12 @@ var StandardTools = struct {
 			RequiredArguments: []string{"dir", "name"},
 		}
 	},
-	WriteFile: func(safeDir string) Action {
-		return Action{
+	WriteFile: func(safeDir string) Tool {
+		return Tool{
 			Name:        "save-file",
 			Description: "saves a file",
 			Function:    saveFile(safeDir),
-			Arguments: []ActionArguments{
+			Arguments: []ToolArguments{
 				{
 					Name:        "dir",
 					Type:        "string",
@@ -66,12 +66,12 @@ var StandardTools = struct {
 			RequiredArguments: []string{"dir", "name", "content"},
 		}
 	},
-	CopyFile: func(safeSrc, safeDest string) Action {
-		return Action{
+	CopyFile: func(safeSrc, safeDest string) Tool {
+		return Tool{
 			Name:        "copy-file",
 			Description: "copies a file",
 			Function:    copyFile(safeSrc, safeDest),
-			Arguments: []ActionArguments{
+			Arguments: []ToolArguments{
 				{
 					Name:        "src",
 					Type:        "string",
@@ -86,8 +86,8 @@ var StandardTools = struct {
 			RequiredArguments: []string{"src", "dest"},
 		}
 	},
-	ListDir: func(safeDir string) Action {
-		return Action{
+	ListDir: func(safeDir string) Tool {
+		return Tool{
 			Name:        "list-directories",
 			Description: "lists the directories in a directory",
 			Function:    listDir(safeDir),
@@ -97,12 +97,12 @@ var StandardTools = struct {
 	// The go and goimports binaries must be in the PATH.
 	// The entrypoint must be main.go.
 	// Requires a go.mod file.
-	Compile: func(safeSrc, safeDest string) Action {
-		return Action{
+	Compile: func(safeSrc, safeDest string) Tool {
+		return Tool{
 			Name:        "compile",
 			Description: "compiles and builds a binary from go source code",
 			Function:    compile(safeSrc, safeDest),
-			Arguments: []ActionArguments{
+			Arguments: []ToolArguments{
 				{
 					Name:        "workingDir",
 					Type:        "string",
@@ -126,12 +126,12 @@ var StandardTools = struct {
 	// The go and goimports binaries must be in the PATH.
 	// The entrypoint must be main.go.
 	// Requires a go.mod file.
-	BuildExtension: func(safeSrc string) Action {
-		return Action{
+	BuildExtension: func(safeSrc string) Tool {
+		return Tool{
 			Name:        "build-extension",
 			Description: "compiles and builds a jarbles extension from go source code",
 			Function:    buildExtension(safeSrc),
-			Arguments: []ActionArguments{
+			Arguments: []ToolArguments{
 				{
 					Name:        "workingDir",
 					Type:        "string",
@@ -182,7 +182,7 @@ func safeDir(safeDir, dir string) (string, error) {
 	return absPath, nil
 }
 
-func readFile(safeDir string) ActionFunction {
+func readFile(safeDir string) ToolFunction {
 	return func(payload string) (string, error) {
 		var request struct {
 			Dir  string `json:"dir"`
@@ -213,7 +213,7 @@ func readFile(safeDir string) ActionFunction {
 	}
 }
 
-func copyFile(safeSrc, safeDest string) ActionFunction {
+func copyFile(safeSrc, safeDest string) ToolFunction {
 	return func(payload string) (string, error) {
 		var request struct {
 			Src  string `json:"src"`
@@ -281,7 +281,7 @@ func copyFile(safeSrc, safeDest string) ActionFunction {
 	}
 }
 
-func saveFile(safeDir string) ActionFunction {
+func saveFile(safeDir string) ToolFunction {
 	return func(payload string) (string, error) {
 		var request struct {
 			Dir     string `json:"dir"`
@@ -320,7 +320,7 @@ func saveFile(safeDir string) ActionFunction {
 	}
 }
 
-func listDir(safeDir string) ActionFunction {
+func listDir(safeDir string) ToolFunction {
 	return func(_ string) (string, error) {
 		var dirs []string
 		err := filepath.WalkDir(safeDir, func(path string, d os.DirEntry, err error) error {
@@ -351,7 +351,7 @@ func listDir(safeDir string) ActionFunction {
 	}
 }
 
-func compile(safeSrc, safeDest string) ActionFunction {
+func compile(safeSrc, safeDest string) ToolFunction {
 	return func(payload string) (string, error) {
 		var request struct {
 			WorkingDir string `json:"workingDir"`
@@ -397,7 +397,7 @@ func compile(safeSrc, safeDest string) ActionFunction {
 	}
 }
 
-func buildExtension(safeSrc string) ActionFunction {
+func buildExtension(safeSrc string) ToolFunction {
 	return func(payload string) (string, error) {
 		var request struct {
 			WorkingDir string `json:"workingDir"`
