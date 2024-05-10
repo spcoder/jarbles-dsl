@@ -35,12 +35,10 @@ type message struct {
 }
 
 type initiate struct {
-	Silence  int     `json:"silence,omitempty" toml:"silence,omitempty" yaml:"silence,omitempty"`
-	Chance   float64 `json:"chance,omitempty" toml:"chance,omitempty" yaml:"chance,omitempty"`
-	Retries  int     `json:"retries,omitempty" toml:"retries,omitempty" yaml:"retries,omitempty"`
-	Cooldown int     `json:"cooldown,omitempty" toml:"cooldown,omitempty" yaml:"cooldown,omitempty"`
-	Prompt   string  `json:"prompt,omitempty" toml:"prompt,omitempty" yaml:"prompt,omitempty"`
-	Model    string  `json:"model,omitempty" toml:"model,omitempty" yaml:"model,omitempty"`
+	Silence int     `json:"silence,omitempty" toml:"silence,omitempty" yaml:"silence,omitempty"`
+	Chance  float64 `json:"chance,omitempty" toml:"chance,omitempty" yaml:"chance,omitempty"`
+	Prompt  string  `json:"prompt,omitempty" toml:"prompt,omitempty" yaml:"prompt,omitempty"`
+	Model   string  `json:"model,omitempty" toml:"model,omitempty" yaml:"model,omitempty"`
 }
 
 type frameworkAssistant struct {
