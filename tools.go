@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,6 +21,7 @@ var StandardTools = struct {
 	ListDir        func(string) Tool
 	Compile        func(string, string) Tool
 	BuildExtension func(string) Tool
+	GetHTML        func() Tool
 }{
 	ReadFile: func(safeDir string) Tool {
 		return Tool{
@@ -144,6 +146,22 @@ var StandardTools = struct {
 				},
 			},
 			RequiredArguments: []string{"workingDir", "outputName"},
+		}
+	},
+	// GetHTML fetches the HTML content of a URL.
+	GetHTML: func() Tool {
+		return Tool{
+			Name:        "get-html",
+			Description: "fetches the HTML content of a URL",
+			Function:    getHTML(),
+			Arguments: []ToolArguments{
+				{
+					Name:        "url",
+					Type:        "string",
+					Description: "the URL to fetch",
+				},
+			},
+			RequiredArguments: []string{"url"},
 		}
 	},
 }
@@ -509,4 +527,38 @@ func runCommand(cmd *exec.Cmd) error {
 
 	LogDebug("DATA", "outdata", string(outdata))
 	return nil
+}
+
+func getHTML() ToolFunction {
+	return func(payload string) (string, error) {
+		rawURL, ok := PayloadGetString(payload, "url", "")
+		if !ok {
+			LogError("url parameter is missing")
+			return "", fmt.Errorf("url parameter is missing")
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		request, _ := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+		request.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+		resp, err := http.DefaultClient.Do(request)
+		if err != nil {
+			return "", fmt.Errorf("error fetching URL: %v", err)
+		}
+		defer func(Body io.ReadCloser) {
+			err := Body.Close()
+			if err != nil {
+				LogError("error closing response body", "error", err)
+			}
+		}(resp.Body)
+
+		html, err := io.ReadAll(resp.Body)
+		if err != nil {
+			LogError("error while reading response body", "error", err)
+			return "", fmt.Errorf("error while reading response body: %w", err)
+		}
+
+		return string(html), nil
+	}
 }
